@@ -3,14 +3,10 @@ import * as d3 from 'd3';
 import { ComponentSize, Margin, VehicleData } from '../types';
 import { useDebounceCallback, useResizeObserver } from 'usehooks-ts';
 
-interface ScatterData extends VehicleData {
-  mmr: number;
-}
-
 
 const ScatterPlot: React.FC = () => {
   const svgRef = useRef<HTMLDivElement | null>(null);
-  const [data, setData] = useState<ScatterData[]>([]);
+  const [data, setData] = useState<VehicleData[]>([]);
   const [size, setSize] = useState<ComponentSize>({ width: 0, height: 0 });
   const onResize = useDebounceCallback((size: ComponentSize) => setSize(size), 200)
 
@@ -29,9 +25,9 @@ const ScatterPlot: React.FC = () => {
         const filteredData = csvData.filter(
           d =>
             d.mmr > 0 &&
-            d.year > 0 &&
+            d.year >= 2005 &&
             d.sellingprice > 0
-        ) as ScatterData[];
+        ) as VehicleData[];
 
         setData(filteredData);
       } catch (error) {

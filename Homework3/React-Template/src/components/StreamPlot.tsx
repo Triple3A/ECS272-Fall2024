@@ -5,6 +5,7 @@ import { useDebounceCallback, useResizeObserver } from 'usehooks-ts';
 
 interface StreamData extends VehicleData {
   make: string;
+  profit: number;
 }
 
 const StreamPlot: React.FC = () => {
@@ -12,27 +13,27 @@ const StreamPlot: React.FC = () => {
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const svgRef = useRef<HTMLDivElement | null>(null);
   const [data, setData] = useState<StreamData[]>([]);
-  const [size, setSize] = useState<ComponentSize>({ width: 0, height: 0 });
-  const onResize = useDebounceCallback((size: ComponentSize) => setSize(size), 200)
+  const [size, setSize] = useState<ComponentSize>({ width: 800, height: 600 });
+  const onResize = useDebounceCallback((size: ComponentSize) => setSize(size), 200);
 
   useResizeObserver({ ref: svgRef, onResize });
-
 
   useEffect(() => {
     const loadData = async () => {
       try {
         const csvData = await d3.csv('/data/car_prices.csv', d => ({
-          make: d['make'],
+          make: d['make'] || '',
           year: +d['year'],
-          sellingprice: +d['sellingprice']
+          sellingprice: +d['sellingprice'],
+          mmr: +d['mmr'],
         }));
 
         const filteredData = csvData.filter(
-          d =>
-            d.make != '' &&
-            d.year > 0 &&
-            d.sellingprice > 0
-        ) as StreamData[];
+          d => d.make && d.year >= 2005 && d.sellingprice > 0 && d.mmr > 0
+        ).map(d => ({
+          ...d,
+          profit: d.sellingprice - d.mmr,
+        })) as StreamData[];
 
         setData(filteredData);
       } catch (error) {
@@ -43,9 +44,9 @@ const StreamPlot: React.FC = () => {
     loadData();
   }, []);
 
-
-
   useEffect(() => {
+    if (!data.length) return;
+
     const margin: Margin = { top: 100, right: 10, bottom: 50, left: 220 };
     const width = 800 - margin.left - margin.right;
     const height = 600 - margin.top - margin.bottom;
@@ -60,124 +61,102 @@ const StreamPlot: React.FC = () => {
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Filter data to remove negative prices and clamp selling prices to 0
-    const filteredData = data.map(d => ({
-      ...d,
-      sellingprice: Math.max(0, d.sellingprice),
-    }));
+    // Prepare data for plotting
+    const years = Array.from(new Set(data.map(d => d.year)));
+    const makes = Array.from(new Set(data.map(d => d.make)));
 
-    // Prepare the data: group by year and make, summing the selling prices
-    const dataByMakeYear = d3.rollup(
-      filteredData,
-      v => d3.sum(v, d => d.sellingprice),
-      d => d.year,
-      d => d.make
-    );
-
-    // Convert the nested map into an array format suitable for stack layout
-    const years = Array.from(new Set(filteredData.map(d => d.year)));
-    const makes = Array.from(new Set(filteredData.map(d => d.make)));
-
-    const stackedData = years.map(year => {
-      const row: Record<string, number> = { year: +year };  // Convert year to number
+    const dataByYearMake = years.map(year => {
+      const entry: { year: number; [key: string]: number } = { year };
       makes.forEach(make => {
-        if (make != '') 
-          row[make] = dataByMakeYear.get(year)?.get(make) || 0;
+        entry[make] = data.find(d => d.year === year && d.make === make)?.profit || 0;
       });
-      return row;
+      return entry;
     });
 
-    // Find the first year where there is some selling price > 0
-    const minYearWithPrice = d3.min(
-      stackedData.filter(d => d3.sum(makes, make => d[make]) > 0),
-      d => d.year
-    );
-
-    // X Scale (year) - start from the first year that has a selling price > 0
+    // X Scale
     const xScale = d3.scaleLinear()
-      .domain([minYearWithPrice || 0, d3.max(filteredData, d => d.year) as number])  // Adjusted to start with year with prices > 0
-      .range([0, size.width]);
+      .domain([d3.min(years) as number, d3.max(years) as number])
+      .range([0, width]);
 
-    // Y Scale (stacked price) - ensure non-negative values using stackOffsetNone
+    // Y Scale based on max profit
+    const yMax = d3.max(dataByYearMake, d => d3.max(makes, make => d[make])) as number;
+    const yMin = d3.min(dataByYearMake, d => d3.min(makes, make => d[make])) as number;
+    // const yMax = d3.max(dataByYearMake, d => d.profit) as number;
+    // const yMin = d3.min(dataByYearMake, d => d.profit) as number;
     const yScale = d3.scaleLinear()
-      .domain([0, d3.max(stackedData, d => d3.sum(makes, make => d[make])) as number])  // Domain based on stacked price
+      .domain([yMin, yMax])
       .range([height, 0]);
 
     // Color scale for each make
-    const colorScale = d3.scaleOrdinal()
+    const colorScale = d3.scaleOrdinal<string>()
       .domain(makes)
       .range(d3.schemeCategory10);
 
-    // Stack generator - use stackOffsetNone to prevent symmetrical layout
-    const stack = d3.stack()
-      .keys(makes)
-      .order(d3.stackOrderNone)
-      .offset(d3.stackOffsetNone);  // Use 'None' to avoid negative stacking
+    console.log(dataByYearMake);
 
-    const series = stack(stackedData);
+    // Plot each make as a separate area
+    makes.forEach(make => {
+      const area = d3.area<{ year: number; [key: string]: number }>()
+        .x(d => xScale(d.year))
+        .y0(yScale(0))
+        .y1(d => yScale(d[make]))
+        .curve(d3.curveBasis);
 
-    // Area generator for the stream plot
-    const area = d3.area<[number, number]>()
-      .x((d, i) => xScale(stackedData[i].year))  // Using stackedData[i].year to get the correct year
-      .y0(d => yScale(d[0]))  // d[0] is the lower bound of the stacked area
-      .y1(d => yScale(d[1]))  // d[1] is the upper bound of the stacked area
-      .curve(d3.curveBasis);  // Optional smoothing for a nicer visual
+      svg.append('path')
+        .datum(dataByYearMake)
+        .attr('d', area as any)
+        .attr('fill', colorScale(make) as string)
+        .attr('opacity', 0.6)
+        .on('mouseover', function (event) {
+          setHoveredMake(make);
+          setHoverPosition({ x: event.pageX, y: event.pageY });
+          svg.selectAll('path')
+            .attr('opacity', 0.2);
+          d3.select(this).attr('opacity', 0.8);
+        })
+        .on('mousemove', function (event) {
+          setHoverPosition({ x: event.pageX, y: event.pageY });
+        })
+        .on('mouseout', function () {
+          setHoveredMake(null);
+          setHoverPosition(null);
+          svg.selectAll('path')
+            .attr('opacity', 0.6);
+        });
+    });
 
-    // Add the streams to the plot with hover events
-    svg.selectAll('path')
-      .data(series)
-      .enter()
-      .append('path')
-      .attr('d', area as any)  // Cast area as 'any' to avoid TypeScript issues
-      .attr('fill', d => colorScale(d.key) as string)
-      .attr('stroke', 'none')
-      .on('mouseover', function (event, d) {
-        setHoveredMake(d.key);  // Set hovered make name on mouseover
-        setHoverPosition({ x: event.pageX, y: event.pageY });  // Set hover position
-        d3.select(this).attr('opacity', 0.8);  // Highlight the hovered stream
-      })
-      .on('mousemove', function (event) {
-        // Update position of hover box on mouse move
-        setHoverPosition({ x: event.pageX, y: event.pageY });
-      })
-      .on('mouseout', function () {
-        setHoveredMake(null);  // Clear the hovered make name on mouseout
-        setHoverPosition(null);  // Clear hover position
-        d3.select(this).attr('opacity', 1);  // Reset opacity
-      });
-
-    // Add X Axis
+    // X Axis
     svg.append('g')
       .attr('transform', `translate(0,${height})`)
       .call(d3.axisBottom(xScale).tickFormat(d3.format('d')));
 
-    // Add Y Axis
+    // Y Axis
     svg.append('g')
       .call(d3.axisLeft(yScale));
 
-    // Add X label
+    // X label
     svg.append('text')
-      .attr('x', size.width / 2)
+      .attr('x', width / 2)
       .attr('y', height + margin.bottom - 10)
       .attr('text-anchor', 'middle')
-      .text('Year');
+      .text('Manufacturing Year');
 
-    // Add Y label
+    // Y label
     svg.append('text')
       .attr('transform', 'rotate(-90)')
       .attr('x', -height / 2)
-      .attr('y', -margin.left + 140)
+      .attr('y', -margin.left + 160)
       .attr('text-anchor', 'middle')
-      .text('Price (Sum of Selling Price)');
+      .text('Profit');
 
-    // Add title
+    // Title
     svg.append('text')
-      .attr('x', size.width / 2)
+      .attr('x', width / 2)
       .attr('y', -margin.top / 2)
       .attr('text-anchor', 'middle')
       .style('font-size', '16px')
       .style('font-weight', 'bold')
-      .text('Stream Plot of Vehicle Prices by Make Over the Manu. Year');
+      .text('Vehicle Profit by Make Over Years');
   }, [data, size]);
 
   return (
@@ -197,12 +176,10 @@ const StreamPlot: React.FC = () => {
           {hoveredMake}
         </div>
       )}
-    
-    <div ref={svgRef} className='chart-container'>
-      <svg id='stream-svg' width='100%' height='100%'></svg>
+      <div ref={svgRef} className='chart-container'>
+        <svg id='stream-svg' width='100%' height='100%'></svg>
+      </div>
     </div>
-  
-  </div>
   );
 };
 

@@ -19,4 +19,5 @@ export interface Point {
 export interface VehicleData{
     readonly year: number;
     readonly sellingprice: number;
+    readonly mmr: number;
 }
