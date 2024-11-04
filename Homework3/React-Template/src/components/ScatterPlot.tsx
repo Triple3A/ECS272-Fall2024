@@ -1,46 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { ComponentSize, Margin, VehicleData } from '../types';
+import { ComponentSize, Margin, PlotProps, VehicleData } from '../types';
 import { useDebounceCallback, useResizeObserver } from 'usehooks-ts';
 
-
-const ScatterPlot: React.FC = () => {
+const ScatterPlot: React.FC<PlotProps> = ({ data }) => {
   const svgRef = useRef<HTMLDivElement | null>(null);
-  const [data, setData] = useState<ScatterData[]>([]);
   const [size, setSize] = useState<ComponentSize>({ width: 0, height: 0 });
   const onResize = useDebounceCallback((size: ComponentSize) => setSize(size), 200)
 
-  interface ScatterData extends VehicleData {
-    profit: number;
-  }
 
   useResizeObserver({ ref: svgRef, onResize });
-
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const csvData = await d3.csv('/data/car_prices.csv', d => ({
-          year: +d['year'],
-          sellingprice: +d['sellingprice'],
-          mmr: +d['mmr'],
-          profit: +d['sellingprice'] - +d['mmr'],
-        }));
-
-        const allData = (csvData as ScatterData[]).filter(
-            d => d.year >= 2005 && d.sellingprice > 0 && d.mmr > 0
-          );
-  
-        const halfData = allData.slice(0, allData.length / 2);
-        setData(halfData);
-      } catch (error) {
-        console.error('Error loading CSV file:', error);
-      }
-    };
-
-    loadData();
-  }, []);
-
 
   useEffect(() => {
     const margin: Margin = { top: 50, right: 30, bottom: 50, left: 100 };

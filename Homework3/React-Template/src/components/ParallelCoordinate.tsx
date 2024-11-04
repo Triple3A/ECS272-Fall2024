@@ -1,48 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { useDebounceCallback, useResizeObserver } from 'usehooks-ts';
-import { Margin, VehicleData } from '../types';
+import { Margin, PlotProps, VehicleData } from '../types';
 
 interface ParallelData extends VehicleData {
   profit: number;
   condition: number;
   odometer: number;
 }
-
-const ParallelCoordinates: React.FC = () => {
+const ParallelCoordinates: React.FC<PlotProps> = ({ data }) => {
   const svgRef = useRef<HTMLDivElement | null>(null);
-  const [data, setData] = useState<ParallelData[]>([]);
   const [size, setSize] = useState<{ width: number; height: number }>({ width: 800, height: 600 });
   const onResize = useDebounceCallback((size: { width: number; height: number }) => setSize(size), 200);
 
   useResizeObserver({ ref: svgRef, onResize });
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const csvData = await d3.csv('/data/car_prices.csv', d => ({
-          year: +d['year'],
-          sellingprice: +d['sellingprice'],
-          mmr: +d['mmr'],
-          profit: +d['sellingprice'] - +d['mmr'],
-          condition: +d['condition'],
-          odometer: +d['odometer'],
-        }));
-
-        const allData = (csvData as ParallelData[]).filter(
-            d => d.year >= 2005 && d.sellingprice > 0 && d.mmr > 0 && d.condition > 0 && d.odometer > 0
-          );
-  
-        const halfData = allData.slice(0, allData.length / 2);
-        setData(halfData);
-        // setFilteredData(halfData);
-      } catch (error) {
-        console.error('Error loading CSV file:', error);
-      }
-    };
-
-    loadData();
-  }, []);
 
   useEffect(() => {
     if (!data.length) return;

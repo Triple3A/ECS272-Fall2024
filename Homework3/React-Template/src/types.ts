@@ -20,4 +20,12 @@ export interface VehicleData{
     readonly year: number;
     readonly sellingprice: number;
     readonly mmr: number;
+    readonly condition: number;
+    readonly odometer: number;
+    readonly make: string;
+    profit: number;
+}
+
+export interface PlotProps {
+    data: VehicleData[];
 }

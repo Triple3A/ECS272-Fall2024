@@ -1,47 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { ComponentSize, Margin, VehicleData } from '../types';
+import { ComponentSize, Margin, PlotProps, VehicleData } from '../types';
 import { useDebounceCallback, useResizeObserver } from 'usehooks-ts';
 
-interface StreamData extends VehicleData {
-  make: string;
-  profit: number;
-}
 
-const StreamPlot: React.FC = () => {
+const StreamPlot: React.FC<PlotProps> = ({ data }) => {
   const [hoveredMake, setHoveredMake] = useState<string | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const svgRef = useRef<HTMLDivElement | null>(null);
-  const [data, setData] = useState<StreamData[]>([]);
   const [size, setSize] = useState<ComponentSize>({ width: 800, height: 600 });
   const onResize = useDebounceCallback((size: ComponentSize) => setSize(size), 200);
 
   useResizeObserver({ ref: svgRef, onResize });
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const csvData = await d3.csv('/data/car_prices.csv', d => ({
-          make: d['make'] || '',
-          year: +d['year'],
-          sellingprice: +d['sellingprice'],
-          mmr: +d['mmr'],
-          profit: +d['sellingprice'] - +d['mmr'],
-        }));
-
-        const allData = (csvData as StreamData[]).filter(
-            d => d.year >= 2005 && d.sellingprice > 0 && d.mmr > 0
-          );
-  
-        const halfData = allData.slice(0, allData.length / 2);
-        setData(halfData);
-      } catch (error) {
-        console.error('Error loading CSV file:', error);
-      }
-    };
-
-    loadData();
-  }, []);
 
   useEffect(() => {
     if (!data.length) return;
