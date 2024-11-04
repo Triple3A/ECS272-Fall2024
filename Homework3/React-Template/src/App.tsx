@@ -7,6 +7,7 @@ import ParallelCoordinates from './components/ParallelCoordinate';
 import { useEffect, useState } from 'react';
 import { VehicleData } from './types';
 import { LoadData } from './tools/LoadData';
+import FilterComponent from './components/FilterComponent';
 
 // Adjust the color theme for material ui
 const theme = createTheme({
@@ -40,19 +41,43 @@ function Layout({ data }: { data: VehicleData[] }) {
 
 function App() {
   const [data, setData] = useState<VehicleData[]>([]);
+  const [filteredData, setFilteredData] = useState<VehicleData[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       const halfData = await LoadData();
       setData(halfData);
+      setFilteredData(halfData);  // Initialize filtered data
     };
 
     fetchData();
   }, []);
 
+  const handleFilterChange = (filters: {
+    selectedMakes: string[];
+    yearRange: [number, number];
+    profitRange: [number, number];
+  }) => {
+    const { selectedMakes, yearRange, profitRange } = filters;
+
+    const newFilteredData = data.filter(d =>
+      (selectedMakes.length === 0 || selectedMakes.includes(d.make)) &&
+      d.year >= yearRange[0] &&
+      d.year <= yearRange[1] &&
+      d.profit >= profitRange[0] &&
+      d.profit <= profitRange[1]
+    );
+
+    setFilteredData(newFilteredData);
+  };
+
   return (
     <ThemeProvider theme={theme}>
-      <Layout data={data} />
+      <FilterComponent
+        makes={[...new Set(data.map(d => d.make))]}  // Extract unique makes
+        onFilterChange={handleFilterChange}
+      />
+      <Layout data={filteredData} />
     </ThemeProvider>
   );
 }
