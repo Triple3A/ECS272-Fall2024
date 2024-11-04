@@ -6,9 +6,13 @@ import { useDebounceCallback, useResizeObserver } from 'usehooks-ts';
 
 const ScatterPlot: React.FC = () => {
   const svgRef = useRef<HTMLDivElement | null>(null);
-  const [data, setData] = useState<VehicleData[]>([]);
+  const [data, setData] = useState<ScatterData[]>([]);
   const [size, setSize] = useState<ComponentSize>({ width: 0, height: 0 });
   const onResize = useDebounceCallback((size: ComponentSize) => setSize(size), 200)
+
+  interface ScatterData extends VehicleData {
+    profit: number;
+  }
 
   useResizeObserver({ ref: svgRef, onResize });
 
@@ -17,19 +21,18 @@ const ScatterPlot: React.FC = () => {
     const loadData = async () => {
       try {
         const csvData = await d3.csv('/data/car_prices.csv', d => ({
-          mmr: +d['mmr'],
           year: +d['year'],
-          sellingprice: +d['sellingprice']
+          sellingprice: +d['sellingprice'],
+          mmr: +d['mmr'],
+          profit: +d['sellingprice'] - +d['mmr'],
         }));
 
-        const filteredData = csvData.filter(
-          d =>
-            d.mmr > 0 &&
-            d.year >= 2005 &&
-            d.sellingprice > 0
-        ) as VehicleData[];
-
-        setData(filteredData);
+        const allData = (csvData as ScatterData[]).filter(
+            d => d.year >= 2005 && d.sellingprice > 0 && d.mmr > 0
+          );
+  
+        const halfData = allData.slice(0, allData.length / 2);
+        setData(halfData);
       } catch (error) {
         console.error('Error loading CSV file:', error);
       }
@@ -54,25 +57,19 @@ const ScatterPlot: React.FC = () => {
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Parse the data
-    const parsedData = data.map(d => ({
-      year: d.year,
-      profit: d.sellingprice - d.mmr,
-    }));
-
     // X Scale
     const xScale = d3.scaleLinear()
-      .domain(d3.extent(parsedData, d => d.year) as [number, number])
+      .domain(d3.extent(data, d => d.year) as [number, number])
       .range([0, size.width]);
 
     // Y Scale
     const yScale = d3.scaleLinear()
-      .domain([d3.min(parsedData, d => d.profit) as number, d3.max(parsedData, d => d.profit) as number])
+      .domain([d3.min(data, d => d.profit) as number, d3.max(data, d => d.profit) as number])
       .range([height, 0]);
 
     // Add the scatter plot points
     svg.selectAll('circle')
-      .data(parsedData)
+      .data(data)
       .enter()
       .append('circle')
       .attr('cx', d => xScale(d.year))

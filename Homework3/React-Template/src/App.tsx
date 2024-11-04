@@ -4,6 +4,7 @@ import { grey } from '@mui/material/colors';
 import Heatmap from './components/Heatmap';
 import StreamPlot from './components/StreamPlot';
 import ScatterPlot from './components/ScatterPlot';
+import ParallelCoordinates from './components/ParallelCoordinate';
 
 // Adjust the color theme for material ui
 const theme = createTheme({
@@ -22,7 +23,7 @@ function Layout() {
     <Grid container spacing={2} id="main-container">
       <Grid container item xs={12} sm={12} md={12} lg={12}>
         <Grid item xs={10} sm={4} md={4} lg={4}>
-          <Heatmap />
+          <ParallelCoordinates />
         </Grid>
         <Grid item xs={10} sm={6} md={6} lg={6}>
           <StreamPlot />

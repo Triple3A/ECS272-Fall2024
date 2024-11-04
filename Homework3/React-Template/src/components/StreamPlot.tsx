@@ -26,16 +26,15 @@ const StreamPlot: React.FC = () => {
           year: +d['year'],
           sellingprice: +d['sellingprice'],
           mmr: +d['mmr'],
+          profit: +d['sellingprice'] - +d['mmr'],
         }));
 
-        const filteredData = csvData.filter(
-          d => d.make && d.year >= 2005 && d.sellingprice > 0 && d.mmr > 0
-        ).map(d => ({
-          ...d,
-          profit: d.sellingprice - d.mmr,
-        })) as StreamData[];
-
-        setData(filteredData);
+        const allData = (csvData as StreamData[]).filter(
+            d => d.year >= 2005 && d.sellingprice > 0 && d.mmr > 0
+          );
+  
+        const halfData = allData.slice(0, allData.length / 2);
+        setData(halfData);
       } catch (error) {
         console.error('Error loading CSV file:', error);
       }
@@ -47,7 +46,7 @@ const StreamPlot: React.FC = () => {
   useEffect(() => {
     if (!data.length) return;
 
-    const margin: Margin = { top: 100, right: 10, bottom: 50, left: 220 };
+    const margin: Margin = { top: 100, right: 10, bottom: 50, left: 310 };
     const width = 800 - margin.left - margin.right;
     const height = 600 - margin.top - margin.bottom;
 
@@ -81,8 +80,6 @@ const StreamPlot: React.FC = () => {
     // Y Scale based on max profit
     const yMax = d3.max(dataByYearMake, d => d3.max(makes, make => d[make])) as number;
     const yMin = d3.min(dataByYearMake, d => d3.min(makes, make => d[make])) as number;
-    // const yMax = d3.max(dataByYearMake, d => d.profit) as number;
-    // const yMin = d3.min(dataByYearMake, d => d.profit) as number;
     const yScale = d3.scaleLinear()
       .domain([yMin, yMax])
       .range([height, 0]);
@@ -145,7 +142,7 @@ const StreamPlot: React.FC = () => {
     svg.append('text')
       .attr('transform', 'rotate(-90)')
       .attr('x', -height / 2)
-      .attr('y', -margin.left + 160)
+      .attr('y', -margin.left + 260)
       .attr('text-anchor', 'middle')
       .text('Profit');
 
