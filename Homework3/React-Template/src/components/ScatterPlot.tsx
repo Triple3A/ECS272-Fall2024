@@ -82,7 +82,7 @@ const ScatterPlot: React.FC = () => {
       .attr('cx', d => xScale(d.year))
       .attr('cy', d => yScale(d.profit))
       .attr('r', 2)
-      .attr('fill', 'steelblue');
+      .attr('fill', d => d.profit > 0 ? 'green' : 'red');
 
     // Add X Axis
     svg.append('g')
